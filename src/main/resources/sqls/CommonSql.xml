@@ -1,0 +1,376 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="Common">
+    <resultMap id="resultAgentHistory" type="AgentHistory">
+        <result property="jobType" column="JOB_TYPE"/>
+        <result property="jobInfo" column="JOB_INFO"/>
+        <result property="startDate" column="START_DT"/>
+    </resultMap>
+    
+    <resultMap id="resultPaymentInfo" type="PaymentInfo">
+        <result property="status" column="PAYMENT_STATUS"/>
+    </resultMap>
+    
+    <update id="updateExpiredPoint" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_CASH_POINT_HISTORY
+        (
+          HISTORY_SEQ,
+          DECREASE_POINT
+        ) (SELECT HISTORY_SEQ, 
+                  POINT
+             FROM TBS_CASH_POINT_HISTORY
+            WHERE POINT_EXPIRING_DT < DATE_ADD(DATE_FORMAT(CURRENT_TIMESTAMP(), '%Y-%m-%d'), INTERVAL 1 DAY)
+              AND POINT_EXPIRING_DT IS NOT NULL
+              AND CASH_POINT_HIST_CTG_KEY = 3
+              AND (POINT - IFNULL(DECREASE_POINT, 0)) > 0
+        )
+        ON DUPLICATE KEY UPDATE DECREASE_POINT = VALUES(DECREASE_POINT)
+    ]]>
+    </update>
+    
+    <select id="selectExpiringPoint" resultType="map">
+    <![CDATA[
+        SELECT A.CUSTOMER_SEQ AS customerNo, IFNULL(B.EXPIRING_POINT, 0) AS expiringPoint
+        FROM TBS_CUSTOMER A
+        LEFT JOIN (
+          SELECT CUSTOMER_SEQ, SUM(POINT - IFNULL(DECREASE_POINT, 0)) AS EXPIRING_POINT
+            FROM TBS_CASH_POINT_HISTORY
+           WHERE POINT_EXPIRING_DT < DATE_ADD(DATE_FORMAT(CURRENT_TIMESTAMP(), '%Y-%m-%d'), INTERVAL 31 DAY)
+             AND POINT_EXPIRING_DT > DATE_FORMAT(CURRENT_TIMESTAMP(), '%Y-%m-%d')
+             AND (POINT - IFNULL(DECREASE_POINT, 0)) > 0
+             AND CASH_POINT_HIST_CTG_KEY = 3
+           GROUP BY CUSTOMER_SEQ
+           ORDER BY NULL
+        ) B
+        ON A.CUSTOMER_SEQ = B.CUSTOMER_SEQ AND A.DEL_YN = 'N' AND A.REMAIN_POINT > 0
+        WHERE A.STATUS_KEY != 6 AND A.REMAIN_POINT > 0 AND IFNULL(A.EXPIRING_POINT, 0) != IFNULL(B.EXPIRING_POINT, 0)
+    ]]>
+    </select>
+    
+    <update id="updateExpiringPoint" parameterType="map">
+        UPDATE TBS_CUSTOMER
+        SET EXPIRING_POINT = #{expiringPoint}
+        WHERE CUSTOMER_SEQ = #{customerNo}
+    </update>
+    
+    <update id="updateDormantCustomer" parameterType="map">
+    <![CDATA[
+        UPDATE TBS_CUSTOMER
+           SET STATUS_KEY = 3
+         WHERE LAST_LOGIN_DT < DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL -365 DAY)
+           AND STATUS_KEY = 1
+    ]]>
+    </update>
+    
+    <update id="updateAwakeCustomer" parameterType="map">
+    <![CDATA[
+        UPDATE TBS_CUSTOMER
+           SET STATUS_KEY = 1
+         WHERE LAST_LOGIN_DT >= DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL -1 DAY)
+           AND STATUS_KEY = 3
+    ]]>
+    </update>
+    
+    <delete id="updateToBeDeleteCustomer" parameterType="map">
+    <![CDATA[
+        UPDATE TBS_CUSTOMER
+           SET DEL_YN = 'Y',
+               UPDATE_DT = UPDATE_DT
+         WHERE UPDATE_DT < DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL -10 DAY)
+           AND STATUS_KEY IN (2, 6)
+           AND DEL_YN = 'N'
+    ]]>
+    </delete>
+    
+    <delete id="deleteCustomer" parameterType="map">
+    <![CDATA[
+        DELETE
+          FROM TBS_CUSTOMER
+         WHERE UPDATE_DT < DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL -180 DAY)
+           AND STATUS_KEY IN (2, 3, 6)
+    ]]>
+    </delete>
+    
+    <delete id="deleteCustomerDetail" parameterType="map">
+    <![CDATA[
+        DELETE A
+          FROM TBS_CUSTOMER_DETAIL A
+          JOIN TBS_CUSTOMER B
+            ON A.CUSTOMER_SEQ = B.CUSTOMER_SEQ
+         WHERE B.UPDATE_DT < DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL -180 DAY)
+           AND B.STATUS_KEY IN (2, 3, 6)
+    ]]>
+    </delete>
+    
+    <delete id="deleteCashPointHistory" parameterType="map">
+    <![CDATA[
+        DELETE
+          FROM TBS_CASH_POINT_HISTORY
+         WHERE ISSUE_DT < DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL -365 DAY)
+    ]]>
+    </delete>
+    
+    <delete id="deleteBikeUseHistory" parameterType="map">
+    <![CDATA[
+        DELETE
+          FROM TBS_BIKE_USE_HISTORY
+         WHERE CREATE_DT < DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL -365 DAY)
+    ]]>
+    </delete>
+    
+    <delete id="deleteVocData" parameterType="map">
+    <![CDATA[
+        DELETE
+          FROM TBS_MGMT_VOC
+         WHERE CREATE_DT < DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL -365 DAY)
+    ]]>
+    </delete>
+    
+    <delete id="deleteDeviceVocData" parameterType="map">
+    <![CDATA[
+        DELETE
+          FROM TBS_MGMT_VOC_DEVICE
+         WHERE CREATE_DT < DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL -365 DAY)
+    ]]>
+    </delete>
+    
+    <delete id="deletePaymentVocData" parameterType="map">
+    <![CDATA[
+        DELETE
+          FROM TBS_MGMT_VOC_PAYMENT
+         WHERE CREATE_DT < DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL -365 DAY)
+    ]]>
+    </delete>
+    
+    <delete id="deleteVocProcessHistory" parameterType="map">
+    <![CDATA[
+        DELETE
+          FROM TBS_VOC_PROC_HISTORY
+         WHERE CREATE_DT < DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL -365 DAY)
+    ]]>
+    </delete>
+    
+    <select id="selectAgentHistory" parameterType="map" resultMap="resultAgentHistory">
+    <![CDATA[
+        SELECT A.JOB_TYPE, 
+               A.START_DT, 
+               A.JOB_INFO
+          FROM TBS_AGENT_HISTORY A
+          JOIN (
+            SELECT JOB_TYPE, MAX(HISTORY_SEQ) AS MAX_HISTORY_SEQ
+              FROM TBS_AGENT_HISTORY
+             WHERE AGENT_SEQ = #{agentNo}
+               AND START_DT > DATE_SUB(DATE_FORMAT(CURRENT_TIMESTAMP(), '%Y-%m-%d'), INTERVAL 7 DAY)
+             GROUP BY JOB_TYPE
+          ) B
+          ON A.HISTORY_SEQ = B.MAX_HISTORY_SEQ
+    ]]>
+    </select>
+    
+    <update id="insertAgentHistory" parameterType="map">
+        INSERT INTO TBS_AGENT_HISTORY
+        (
+          AGENT_SEQ,
+          START_DT,
+          JOB_TYPE,
+          JOB_INFO,
+          ERROR_MESSAGE
+        ) 
+        VALUES 
+        (
+          #{agentNo},
+          #{startDate},
+          #{jobType},
+          #{jobInfo},
+          #{errorMessage}
+        )
+    </update>
+    
+    <select id="selectSmtpInfo" resultType="map">
+        SELECT
+        KEY_NM AS keyName,
+        VALUE AS value
+        FROM TBS_DEVELOP_CONFIG
+        WHERE KEY_NM IN ('SMTP_HOST', 'SMTP_USER', 'SMTP_PASSWORD', 'MAIL_FROM')
+    </select>
+    
+    <select id="selectIamportInfo" resultType="map">
+        SELECT
+        KEY_NM AS keyName,
+        VALUE AS value
+        FROM TBS_DEVELOP_CONFIG
+        WHERE KEY_NM IN ('IMP_API_KEY', 'IMP_API_SECRET_KEY')
+    </select>
+    
+    <select id="selectIMPPaymentHistory" resultType="map">
+    <![CDATA[
+        SELECT 
+            A.IMP_UID AS paymentCode,
+            A.MERCHANT_UID AS paymentOrderCode,
+            A.APPLY_NUM AS paymentApplyNum,
+            A.PAID_AT AS paymentDt,
+            A.CANCELLED_AT AS cancelledDt,
+            A.PG_PROVIDER AS paymentPG,
+            A.PAY_METHOD AS paymentMethod,
+            A.AMOUNT AS amount,
+            A.CANCEL_AMOUNT AS cancelAmount,
+            A.STATUS AS status,
+            B.CUSTOMER_SEQ AS customerNo,
+            C.PAYMENT_SEQ AS paymentNo,
+            C.DEPOSIT_YN AS depositYn,
+            IFNULL(D.POINT, 0) AS point,
+            B.REMAIN_CASH AS remainCash,
+            B.REMAIN_POINT AS remainPoint
+          FROM TBS_PAYMENT_IMP A
+          JOIN TBS_CUSTOMER B
+            ON A.BUYER_NAME = B.ID
+     LEFT JOIN TBS_PAYMENT
+
+            ON A.MERCHANT_UID = C.PAYMENT_ORDER_CODE
+     LEFT JOIN TBS_CASH_POINT_HISTORY D
+            ON C.CUSTOMER_SEQ = D.CUSTOMER_SEQ AND C.PAYMENT_SEQ = D.PAYMENT_SEQ AND D.CASH_POINT_HIST_CTG_KEY = 3
+         WHERE A.CANCELLED_AT >= #{startDate}
+           AND A.CANCELLED_AT <= #{endDate}
+           AND A.STATUS = #{status}
+           AND C.PAYMENT_STATUS = 'paid'
+           AND C.PAYMENT_SEQ IS NOT NULL
+           AND A.STATUS != C.PAYMENT_STATUS
+         ORDER BY cancelledDt
+	]]>	
+    </select>
+    
+    <insert id="insertIMPPaymentHistory" parameterType="map">
+        INSERT INTO TBS_PAYMENT_IMP
+        (
+          IMP_UID,
+          MERCHANT_UID,
+          APPLY_NUM,
+          STATUS,
+          PG_PROVIDER,
+          PAY_METHOD,
+          PAID_AT,
+          AMOUNT,
+          CANCELLED_AT,
+          CANCEL_TOTAL_AMOUNT,
+          CANCEL_AMOUNT,
+          CANCEL_REASON,
+          BUYER_NAME
+        ) VALUES
+        <foreach item="item" index="index" collection="list" open="" separator="," close="">
+         (          
+          #{item.impUid}
+          ,#{item.merchantUid}
+          ,#{item.applyNum}
+          ,#{item.status}
+          ,#{item.pgProvider}
+          ,#{item.pgMethod}
+          ,DATE_FORMAT(#{item.paidAt}, '%Y-%m-%d %H:%i:%s')
+          ,#{item.amount}
+          ,DATE_FORMAT(#{item.cancelledAt}, '%Y-%m-%d %H:%i:%s')
+          ,#{item.totalCancelledAmount}
+          ,#{item.cancelledAmount}
+          ,#{item.cancelReson}
+          ,#{item.buyerName}
+        )
+        </foreach>
+        ON DUPLICATE KEY UPDATE STATUS = VALUES(STATUS)
+                                , CANCELLED_AT = VALUES(CANCELLED_AT)
+                                , CANCEL_TOTAL_AMOUNT = VALUES(CANCEL_TOTAL_AMOUNT)
+                                , CANCEL_AMOUNT = VALUES(CANCEL_AMOUNT)
+                                , CANCEL_REASON = VALUES(CANCEL_REASON)
+    </insert>
+    
+    <select id="selectPayment" parameterType="map" resultMap="resultPaymentInfo">
+        SELECT IFNULL(PAYMENT_STATUS, '') AS PAYMENT_STATUS
+          FROM TBS_PAYMENT
+        WHERE PAYMENT_SEQ = #{paymentNo}
+    </select>
+    
+    <update id="updatePayment" parameterType="map">
+        UPDATE TBS_PAYMENT
+           SET PAYMENT_STATUS = 'cancelled',
+               CANCEL_AMOUNT = #{cancelAmount}
+        WHERE PAYMENT_SEQ = #{paymentNo}
+    </update>
+    
+    <update id="updateCustomerInfo" parameterType="map">
+        UPDATE TBS_CUSTOMER
+           SET REMAIN_POINT = #{remainPoint}
+               ,REMAIN_CASH = #{remainCash}
+        <if test="deposit != null">
+               ,DEPOSIT = #{deposit}
+        </if>
+        WHERE CUSTOMER_SEQ = #{customerNo}
+    </update>
+    
+    <insert id="insertCashPointHistory" parameterType="map">
+        INSERT INTO TBS_CASH_POINT_HISTORY
+        (
+          CUSTOMER_SEQ,
+          ISSUE_DT,
+          CASH_POINT_HIST_CTG,
+          CASH_POINT_HIST_CTG_KEY,
+          ROUTE,
+          CASH_POINT_HIST_ROUTE_KEY,
+          REASON,
+          CASH,
+          POINT,
+          REMAIN_CASH,
+          REMAIN_POINT,
+          DEPOSIT_YN,
+          PAYMENT_SEQ
+        )
+        SELECT
+          #{customerNo},
+          #{cancelledDt},
+          FUN_GET_CASH_POINT_HIST_CTG(6),
+          6,
+          FUN_GET_CASH_POINT_HIST_ROUTE(IF (#{depositYn} = 'Y', 1, 2)),
+          IF (#{depositYn} = 'Y', 1, 2),
+          FUN_GET_CASH_POINT_HIST_CTG(6),
+          #{cash},
+          #{point},
+          #{remainCash},
+          #{remainPoint},
+          #{depositYn},
+          #{paymentNo}
+        FROM DUAL
+    </insert>
+
+    <select id="selectIMPPaymentHistory2" resultType="map">
+    <![CDATA[
+        SELECT
+            A.IMP_UID AS paymentCode,
+            A.MERCHANT_UID AS paymentOrderCode,
+            A.APPLY_NUM AS paymentApplyNum,
+            A.PAID_AT AS paymentDt,
+            A.CANCELLED_AT AS cancelledDt,
+            A.PG_PROVIDER AS paymentPG,
+            A.PAY_METHOD AS paymentMethod,
+            A.AMOUNT AS amount,
+            A.CANCEL_AMOUNT AS cancelAmount,
+            A.STATUS AS status,
+            B.CUSTOMER_SEQ AS customerNo,
+            C.PAYMENT_SEQ AS paymentNo,
+            C.DEPOSIT_YN AS depositYn,
+            IFNULL(D.POINT, 0) AS point,
+            B.REMAIN_CASH AS remainCash,
+            B.REMAIN_POINT AS remainPoint
+        FROM TBS_PAYMENT_IMP A
+                 JOIN TBS_CUSTOMER B
+                      ON A.BUYER_NAME = B.ID
+                 LEFT JOIN TBS_PAYMENT C
+                           ON A.MERCHANT_UID = C.PAYMENT_ORDER_CODE
+                 LEFT JOIN TBS_CASH_POINT_HISTORY D
+                           ON C.CUSTOMER_SEQ = D.CUSTOMER_SEQ AND C.PAYMENT_SEQ = D.PAYMENT_SEQ AND D.CASH_POINT_HIST_CTG_KEY = 3
+        WHERE A.PAID_AT >= #{startDate}
+          AND A.PAID_AT <= #{endDate}
+          AND A.STATUS = 'paid'
+          AND C.PAYMENT_STATUS = 'wait'
+          AND C.PAYMENT_SEQ IS NOT NULL
+          AND A.STATUS != C.PAYMENT_STATUS
+        ]]>
+    </select>
+</mapper>

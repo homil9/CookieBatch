@@ -1,0 +1,745 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+
+<mapper namespace="Summary">    
+    <resultMap id="resultDatePeriod" type="DatePeriod">
+        <result property="startDate" column="startDate"/>
+        <result property="endDate" column="endDate"/>
+    </resultMap>
+    
+    <select id="selectBikeUseMaxHistoryNo" parameterType="map" resultType="int">
+        SELECT MAX(HISTORY_SEQ) FROM TBS_BIKE_USE_HISTORY
+    </select>
+    
+    <select id="selectCashPointMaxHistoryNo" parameterType="map" resultType="int">
+        SELECT MAX(HISTORY_SEQ) FROM TBS_CASH_POINT_HISTORY
+    </select>
+    
+    <select id="selectVocProcessMaxHistoryNo" parameterType="map" resultType="int">
+        SELECT MAX(HISTORY_SEQ) FROM TBS_VOC_PROC_HISTORY
+    </select>
+    
+    <select id="selectBikeHistoryStartDate" parameterType="map" resultType="String">
+    <![CDATA[
+        SELECT DATE_FORMAT(MIN(IFNULL(USE_START_DT, CREATE_DT)), '%Y-%m-%d') AS startDate
+          FROM TBS_BIKE_USE_HISTORY
+         WHERE UPDATE_DT >= #{updateStartDate}
+           AND UPDATE_DT <= CURRENT_TIMESTAMP()
+    ]]>
+    </select>
+    
+    <select id="selectCustomerDailySummaryStartDate" parameterType="map" resultType="String">
+    <![CDATA[
+        SELECT MIN(START_DT) AS startDate
+          FROM TBS_STATS_CUSTOMER_DAY_SUMMARY
+         WHERE UPDATE_DT >= #{updateStartDate}
+           AND UPDATE_DT <= CURRENT_TIMESTAMP()
+    ]]>
+    </select>
+    
+    <select id="selectBikeDailySummaryStartDate" parameterType="map" resultType="String">
+    <![CDATA[
+        SELECT MIN(START_DT) AS startDate
+          FROM TBS_STATS_BIKE_DAY_SUMMARY
+         WHERE UPDATE_DT >= #{updateStartDate}
+           AND UPDATE_DT <= CURRENT_TIMESTAMP()
+    ]]>
+    </select>
+    
+    <select id="selectPaymentDailySummaryStartDate" parameterType="map" resultType="String">
+    <![CDATA[
+        SELECT MIN(START_DT) AS startDate
+          FROM TBS_STATS_PAYMENT_DAY_SUMMARY
+         WHERE UPDATE_DT >= #{updateStartDate}
+           AND UPDATE_DT <= CURRENT_TIMESTAMP()
+    ]]>
+    </select>
+    
+    <select id="selectVocDailySummaryStartDate" parameterType="map" resultType="String">
+    <![CDATA[
+        SELECT MIN(START_DT) AS startDate
+          FROM TBS_STATS_VOC_DAY_SUMMARY
+         WHERE UPDATE_DT >= #{updateStartDate}
+           AND UPDATE_DT <= CURRENT_TIMESTAMP()
+    ]]>
+    </select>
+    
+    <update id="resetStatsBikeTypeCount" parameterType="map">
+        UPDATE TBS_STATS_BIKE_TYPE
+        SET CNT_BIKE = 0
+    </update>
+    
+    <update id="resetStatsDeviceStatus" parameterType="map">
+        TRUNCATE TABLE TBS_STATS_DEVICE_STATUS
+    </update>
+
+    <update id="updateBikeTypeDistributionStatus" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_STATS_BIKE_TYPE
+        (
+          BIKE_TYPE_SEQ,
+          CNT_BIKE
+        ) (SELECT BIKE_TYPE_SEQ,
+                  COUNT(BIKE_TYPE_SEQ)
+             FROM TBS_DEVICE
+            WHERE SERVICE_STATUS_CTG_SEQ = 3
+            GROUP BY BIKE_TYPE_SEQ
+        )
+        ON DUPLICATE KEY UPDATE CNT_BIKE = VALUES(CNT_BIKE)
+    ]]>
+    </update>
+    
+    <update id="updateServiceStatus" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_STATS_DEVICE_STATUS
+        (
+          CATEGORY_KEY,
+          STATUS_KEY,
+          CNT
+        ) (SELECT 1,
+                  SERVICE_STATUS_CTG_SEQ,
+                  COUNT(SERVICE_STATUS_CTG_SEQ)
+             FROM TBS_DEVICE
+            GROUP BY SERVICE_STATUS_CTG_SEQ
+        )
+        ON DUPLICATE KEY UPDATE CNT = VALUES(CNT)
+    ]]>
+    </update>
+    
+    <update id="updateCommunicationStatus" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_STATS_DEVICE_STATUS
+        (
+          CATEGORY_KEY,
+          STATUS_KEY,
+          CNT
+        ) (SELECT 2,
+                  FUN_GET_COMM_STATUS_KEY(LAST_REPORT_DT) AS COMM_STATUS_KEY,
+                  COUNT(IFNULL(LAST_REPORT_DT, ''))
+             FROM TBS_DEVICE
+            GROUP BY COMM_STATUS_KEY
+        )
+        ON DUPLICATE KEY UPDATE CNT = VALUES(CNT)
+    ]]>
+    </update>
+    
+    <update id="updateBikeStatus" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_STATS_DEVICE_STATUS
+        (
+          CATEGORY_KEY,
+          STATUS_KEY,
+          CNT
+        ) (SELECT 3,
+                  FUN_GET_BIKE_STATUS_KEY(BIKE_STATUS_KEY, LAST_USE_DT) AS TEMP_BIKE_STATUS_KEY,
+                  COUNT(BIKE_STATUS_KEY)
+             FROM TBS_DEVICE
+            GROUP BY TEMP_BIKE_STATUS_KEY
+        )
+        ON DUPLICATE KEY UPDATE CNT = VALUES(CNT)
+    ]]>
+    </update>
+    
+    <update id="updateUseCountByBikeType" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_STATS_BIKE_TYPE
+        (
+          BIKE_TYPE_SEQ,
+          CNT_USE_BIKE
+        ) (SELECT B.BIKE_TYPE_SEQ,
+                  SUM(IF(A.STATUS IN ('사용 완료', '사용 중'), 1, 0))
+             FROM TBS_BIKE_USE_HISTORY A
+             JOIN TBS_BIKE_TYPE_NAME B
+               ON A.BIKE_TYPE_NM = B.NAME 
+              AND B.LANG = 'KO'
+            WHERE A.HISTORY_SEQ >= #{startBikeUseHistoryNo}
+              AND A.HISTORY_SEQ <= #{endBikeUseHistoryNo}
+            GROUP BY B.BIKE_TYPE_SEQ
+        )
+        ON DUPLICATE KEY UPDATE CNT_USE_BIKE = IFNULL(CNT_USE_BIKE, 0) + VALUES(CNT_USE_BIKE)
+    ]]>
+    </update>
+    
+    <update id="updateBikeAccumulationData1" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_BIKE
+        (
+          BIKE_MGMT_NO,
+          CNT_BIKE_USE,
+          CNT_BIKE_RESERV,
+          CNT_BIKE_RESERV_CANCLE
+        ) 
+        (
+          SELECT BIKE_MGMT_NO, 
+                 SUM(IF(STATUS IN ('사용 완료', '사용 중'), 1, 0)), 
+                 SUM(IF(STATUS = '예약', 1, 0)), 
+                 SUM(IF(STATUS = '예약 취소', 1, 0))
+            FROM TBS_BIKE_USE_HISTORY
+           WHERE HISTORY_SEQ >= #{startBikeUseHistoryNo}
+             AND HISTORY_SEQ <= #{endBikeUseHistoryNo}
+           GROUP BY BIKE_MGMT_NO
+        )
+        ON DUPLICATE KEY UPDATE CNT_BIKE_USE = IFNULL(CNT_BIKE_USE, 0) + VALUES(CNT_BIKE_USE),
+                                CNT_BIKE_RESERV = IFNULL(CNT_BIKE_RESERV, 0) + VALUES(CNT_BIKE_RESERV),
+                                CNT_BIKE_RESERV_CANCLE = IFNULL(CNT_BIKE_RESERV_CANCLE, 0) + VALUES(CNT_BIKE_RESERV_CANCLE)
+    ]]>
+    </update>
+    
+    <update id="updateBikeAccumulationData2" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_BIKE
+        (
+          BIKE_MGMT_NO,
+          SUM_MOVE_DISTANCE,
+          SUM_USE_CASH,
+          SUM_USE_POINT
+        )
+        (
+          SELECT BIKE_MGMT_NO, 
+                 SUM(IFNULL(DISTANCE, 0)), 
+                 SUM(ABS(IFNULL(USE_CASH, 0))), 
+                 SUM(ABS(IFNULL(USE_POINT, 0)))
+            FROM TBS_BIKE_USE_HISTORY
+           WHERE UPDATE_DT >= DATE_FORMAT(#{updateStartDate}, '%Y-%m-%d %H:%i:%s')
+             AND UPDATE_DT < DATE_FORMAT(#{updateEndDate}, '%Y-%m-%d %H:%i:%s')
+             AND STATUS = '사용 완료'
+           GROUP BY BIKE_MGMT_NO
+        )
+        ON DUPLICATE KEY UPDATE SUM_MOVE_DISTANCE = IFNULL(SUM_MOVE_DISTANCE, 0) + VALUES(SUM_MOVE_DISTANCE),
+                                SUM_USE_CASH = IFNULL(SUM_USE_CASH, 0) + VALUES(SUM_USE_CASH),
+                                SUM_USE_POINT = IFNULL(SUM_USE_POINT, 0) + VALUES(SUM_USE_POINT)
+    ]]>
+    </update>
+    
+    <update id="updateCustomerBikeAccumulationData1" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_CUSTOMER_DETAIL
+        (
+          CUSTOMER_SEQ,
+          CNT_BIKE_USE,
+          CNT_BIKE_RESERV,
+          CNT_BIKE_RESERV_CANCLE
+        )
+        (
+          SELECT A.CUSTOMER_SEQ,
+                 SUM(IF(A.STATUS IN ('사용 완료', '사용 중'), 1, 0)), 
+                 SUM(IF(A.STATUS = '예약', 1, 0)), 
+                 SUM(IF(A.STATUS = '예약 취소', 1, 0))
+           FROM TBS_BIKE_USE_HISTORY A
+           JOIN TBS_CUSTOMER B
+             ON A.CUSTOMER_SEQ = B.CUSTOMER_SEQ
+          WHERE A.HISTORY_SEQ >= #{startBikeUseHistoryNo}
+            AND A.HISTORY_SEQ <= #{endBikeUseHistoryNo}
+          GROUP BY A.CUSTOMER_SEQ
+        )
+        ON DUPLICATE KEY UPDATE CNT_BIKE_USE = IFNULL(CNT_BIKE_USE, 0) + VALUES(CNT_BIKE_USE),
+                                CNT_BIKE_RESERV = IFNULL(CNT_BIKE_RESERV, 0) + VALUES(CNT_BIKE_RESERV),
+                                CNT_BIKE_RESERV_CANCLE = IFNULL(CNT_BIKE_RESERV_CANCLE, 0) + VALUES(CNT_BIKE_RESERV_CANCLE)
+    ]]>
+    </update>
+    
+    <update id="updateCustomerBikeAccumulationData2" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_CUSTOMER_DETAIL
+        (
+          CUSTOMER_SEQ,
+          SUM_USE_CASH,
+          SUM_USE_POINT,
+          SUM_BIKE_USE_TIME
+        )
+        (
+          SELECT A.CUSTOMER_SEQ, 
+                 SUM(ABS(IFNULL(A.USE_CASH, 0))), 
+                 SUM(ABS(IFNULL(A.USE_POINT, 0))), 
+                 SUM(IFNULL(A.USE_TIME, 0))
+           FROM TBS_BIKE_USE_HISTORY A
+           JOIN TBS_CUSTOMER B
+             ON A.CUSTOMER_SEQ = B.CUSTOMER_SEQ
+          WHERE A.UPDATE_DT >= DATE_FORMAT(#{updateStartDate}, '%Y-%m-%d %H:%i:%s')
+            AND A.UPDATE_DT < DATE_FORMAT(#{updateEndDate}, '%Y-%m-%d %H:%i:%s')
+            AND A.STATUS = '사용 완료'
+          GROUP BY A.CUSTOMER_SEQ
+        )
+        ON DUPLICATE KEY UPDATE SUM_USE_CASH = IFNULL(SUM_USE_CASH, 0) + VALUES(SUM_USE_CASH),
+                                SUM_USE_POINT = IFNULL(SUM_USE_POINT, 0) + VALUES(SUM_USE_POINT),
+                                SUM_BIKE_USE_TIME = IFNULL(SUM_BIKE_USE_TIME, 0) + VALUES(SUM_BIKE_USE_TIME)
+    ]]>
+    </update>
+    
+    <update id="updateCustomerPaymentAccumulationData" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_CUSTOMER_DETAIL
+        (
+          CUSTOMER_SEQ,
+          SUM_PAY_AMOUNT,
+          CNT_PAYMENT,
+          CNT_PAYMENT_CANCLE
+        )
+        (
+          SELECT A.CUSTOMER_SEQ, 
+                 SUM(IF(A.CASH_POINT_HIST_CTG = '결제', B.PAYMENT_AMOUNT, 0)) - SUM(IF(A.CASH_POINT_HIST_CTG = '결제 취소' OR A.CASH_POINT_HIST_CTG = '환불', B.PAYMENT_AMOUNT, 0)), 
+                 SUM(IF(A.CASH_POINT_HIST_CTG = '결제', 1, 0)), 
+                 SUM(IF(A.CASH_POINT_HIST_CTG = '결제 취소' OR A.CASH_POINT_HIST_CTG = '환불', 1, 0))
+            FROM TBS_CASH_POINT_HISTORY A
+            JOIN TBS_PAYMENT B
+              ON A.PAYMENT_SEQ = B.PAYMENT_SEQ
+            JOIN TBS_CUSTOMER C
+              ON A.CUSTOMER_SEQ = C.CUSTOMER_SEQ
+           WHERE A.HISTORY_SEQ >= #{startCashPointHistoryNo}
+             AND A.HISTORY_SEQ <= #{endCashPointHistoryNo}
+           GROUP BY A.CUSTOMER_SEQ
+        )
+        ON DUPLICATE KEY UPDATE SUM_PAY_AMOUNT = IFNULL(SUM_PAY_AMOUNT, 0) + VALUES(SUM_PAY_AMOUNT),
+                                CNT_PAYMENT = IFNULL(CNT_PAYMENT, 0) + VALUES(CNT_PAYMENT),
+                                CNT_PAYMENT_CANCLE = IFNULL(CNT_PAYMENT_CANCLE, 0) + VALUES(CNT_PAYMENT_CANCLE)
+    ]]>
+    </update>
+    
+    <update id="updateCustomerDetailData" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_CUSTOMER_DETAIL
+        (
+          CUSTOMER_SEQ,
+          SUM_PAY_AMOUNT,
+          CNT_PAYMENT_CANCLE
+        )
+        (
+          SELECT B.CUSTOMER_SEQ, 
+                 SUM(IFNULL(C.PAYMENT_AMOUNT, 0)), 
+                 COUNT(C.PAYMENT_AMOUNT)
+            FROM TBS_VOC_PROC_HISTORY A
+            JOIN TBS_MGMT_VOC_PAYMENT B
+              ON A.VOC_SEQ = B.VOC_SEQ
+            JOIN TBS_PAYMENT C
+              ON B.PAYMENT_SEQ = C.PAYMENT_SEQ
+           WHERE A.HISTORY_SEQ >= #{startVocProcessHistoryNo}
+             AND A.HISTORY_SEQ <= #{endVocProcessHistoryNo}
+             AND A.VOC_CTG_KEY = 2
+             AND A.STATUS = '취소'
+           GROUP BY B.CUSTOMER_SEQ
+        )
+        ON DUPLICATE KEY UPDATE SUM_PAY_AMOUNT = IFNULL(SUM_PAY_AMOUNT, 0) + VALUES(SUM_PAY_AMOUNT),
+                                CNT_PAYMENT_CANCLE = IFNULL(CNT_PAYMENT_CANCLE, 0) - VALUES(CNT_PAYMENT_CANCLE)
+    ]]>
+    </update>
+    
+    <select id="selectUpdatePaymentPeriod" parameterType="map" resultMap="resultDatePeriod">
+    <![CDATA[
+        SELECT MIN(C.PAYMENT_DT) AS startDate, 
+               MAX(C.PAYMENT_DT) AS endDate
+          FROM TBS_VOC_PROC_HISTORY A
+          JOIN TBS_MGMT_VOC_PAYMENT B
+            ON A.VOC_SEQ = B.VOC_SEQ
+          JOIN TBS_PAYMENT C
+            ON B.PAYMENT_SEQ = C.PAYMENT_SEQ
+         WHERE A.HISTORY_SEQ >= #{startVocProcessHistoryNo}
+           AND A.HISTORY_SEQ <= #{endVocProcessHistoryNo}
+           AND A.VOC_CTG_KEY = 2
+           AND A.STATUS = '취소'
+    ]]>
+    </select>
+
+    <update id="summaryDailyRegistCustomer" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_STATS_CUSTOMER_DAY_SUMMARY
+        (
+          START_DT,
+          CNT_REGIST
+        ) (SELECT DATE_FORMAT(CREATE_DT, '%Y-%m-%d'),
+                  COUNT(CREATE_DT)
+             FROM TBS_CUSTOMER
+            WHERE CREATE_DT >= DATE_FORMAT(#{startDate}, '%Y-%m-%d')
+              AND CREATE_DT < DATE_ADD(DATE_FORMAT(#{endDate}, '%Y-%m-%d'), INTERVAL 1 DAY)
+            GROUP BY DATE_FORMAT(CREATE_DT, '%Y-%m-%d')
+        )
+        ON DUPLICATE KEY UPDATE CNT_REGIST = VALUES(CNT_REGIST)
+    ]]>
+    </update>
+    
+    <update id="summaryDailyUnregistCustomer" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_STATS_CUSTOMER_DAY_SUMMARY
+        (
+          START_DT,
+          CNT_UNREGIST
+        ) 
+        (
+          SELECT DATE_FORMAT(UPDATE_DT, '%Y-%m-%d'),
+                 COUNT(UPDATE_DT)
+            FROM TBS_CUSTOMER
+           WHERE UPDATE_DT >= DATE_FORMAT(#{startDate}, '%Y-%m-%d')
+             AND UPDATE_DT < DATE_ADD(DATE_FORMAT(#{endDate}, '%Y-%m-%d'), INTERVAL 1 DAY)
+             AND STATUS_KEY = 6
+           GROUP BY DATE_FORMAT(UPDATE_DT, '%Y-%m-%d')
+        )
+        ON DUPLICATE KEY UPDATE CNT_UNREGIST = VALUES(CNT_UNREGIST)
+    ]]>
+    </update>
+    
+    <update id="summaryWeeklyCustomer" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_STATS_CUSTOMER_WEEK_SUMMARY
+        (
+          START_DT,
+          CNT_REGIST,
+          CNT_UNREGIST
+        ) (SELECT DATE_FORMAT(#{startDate}, '%Y-%m-%d') AS WEEK_START_DT,
+                  SUM(CNT_REGIST),
+                  SUM(CNT_UNREGIST)
+             FROM TBS_STATS_CUSTOMER_DAY_SUMMARY
+            WHERE START_DT >= DATE_FORMAT(#{startDate}, '%Y-%m-%d')
+              AND START_DT < DATE_ADD(DATE_FORMAT(#{startDate}, '%Y-%m-%d'), INTERVAL 7 DAY)
+            GROUP BY WEEK_START_DT
+        )      
+        ON DUPLICATE KEY UPDATE CNT_REGIST = VALUES(CNT_REGIST),
+                                CNT_UNREGIST = VALUES(CNT_UNREGIST)
+    ]]>
+    </update>
+    
+    <update id="summaryMonthlyCustomer" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_STATS_CUSTOMER_MONTH_SUMMARY
+        (
+          START_DT,
+          CNT_REGIST,
+          CNT_UNREGIST
+        ) (SELECT DATE_FORMAT(#{startDate}, '%Y-%m-%d') AS MONTH_START_DT,
+                  SUM(CNT_REGIST),
+                  SUM(CNT_UNREGIST)
+             FROM TBS_STATS_CUSTOMER_DAY_SUMMARY
+            WHERE START_DT >= DATE_FORMAT(#{startDate}, '%Y-%m-%d')
+              AND START_DT < DATE_ADD(DATE_FORMAT(#{startDate}, '%Y-%m-%d'), INTERVAL 1 MONTH)
+            GROUP BY MONTH_START_DT
+        )
+        ON DUPLICATE KEY UPDATE CNT_REGIST = VALUES(CNT_REGIST),
+                                CNT_UNREGIST = VALUES(CNT_UNREGIST)
+    ]]>
+    </update>
+    
+    <update id="summaryDailyBikeHistoryByLoc" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_STATS_BIKE_LOC_DAY_SUMMARY
+        (
+          START_DT,
+          SI_DO_NM,
+          SI_GUN_GU_NM,
+          SUM_USE_CASH,
+          SUM_USE_POINT,
+          CNT_BIKE_USE
+        ) (SELECT DATE_FORMAT(IFNULL(USE_START_DT, CREATE_DT), '%Y-%m-%d'),
+                  USE_SI_DO_NM,
+                  USE_SI_GUN_GU_NM,
+                  SUM(ABS(IFNULL(USE_CASH, 0))),
+                  SUM(ABS(IFNULL(USE_POINT, 0))),
+                  COUNT(CREATE_DT)
+             FROM TBS_BIKE_USE_HISTORY
+            WHERE CREATE_DT >= DATE_SUB(DATE_FORMAT(#{startDate}, '%Y-%m-%d'), INTERVAL 1 HOUR)
+              AND IFNULL(USE_START_DT, CREATE_DT) >= DATE_FORMAT(#{startDate}, '%Y-%m-%d')
+              AND IFNULL(USE_START_DT, CREATE_DT) < DATE_ADD(DATE_FORMAT(#{endDate}, '%Y-%m-%d'), INTERVAL 1 DAY)
+              AND STATUS IN ('사용 완료', '사용 중')
+            GROUP BY DATE_FORMAT(IFNULL(USE_START_DT, CREATE_DT), '%Y-%m-%d'), USE_SI_DO_NM, USE_SI_GUN_GU_NM
+        )
+        ON DUPLICATE KEY UPDATE SUM_USE_CASH = VALUES(SUM_USE_CASH),
+                                SUM_USE_POINT = VALUES(SUM_USE_POINT),
+                                CNT_BIKE_USE = VALUES(CNT_BIKE_USE)
+    ]]>
+    </update>
+    
+    <update id="summaryDailyBikeHistory" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_STATS_BIKE_DAY_SUMMARY
+        (
+          START_DT,
+          SUM_MOVE_DISTANCE,
+          SUM_USE_TIME,
+          SUM_USE_CASH,
+          SUM_USE_POINT,
+          CNT_BIKE_USE,
+          CNT_BIKE_RESERV,
+          CNT_BIKE_RESERV_CANCEL
+        ) (SELECT DATE_FORMAT(IFNULL(USE_START_DT, CREATE_DT), '%Y-%m-%d'),
+                  SUM(IFNULL(DISTANCE, 0)),
+                  SUM(IFNULL(USE_TIME, 0)),
+                  SUM(ABS(IFNULL(USE_CASH, 0))),
+                  SUM(ABS(IFNULL(USE_POINT, 0))),
+                  SUM(IF(STATUS IN ('사용 완료', '사용 중'), 1, 0)),
+                  SUM(IF(STATUS = '예약', 1, 0)),
+                  SUM(IF(STATUS = '예약 취소', 1, 0))
+             FROM TBS_BIKE_USE_HISTORY
+            WHERE CREATE_DT >= DATE_SUB(DATE_FORMAT(#{startDate}, '%Y-%m-%d'), INTERVAL 1 HOUR)
+              AND IFNULL(USE_START_DT, CREATE_DT) >= DATE_FORMAT(#{startDate}, '%Y-%m-%d')
+              AND IFNULL(USE_START_DT, CREATE_DT) < DATE_ADD(DATE_FORMAT(#{endDate}, '%Y-%m-%d'), INTERVAL 1 DAY)
+            GROUP BY DATE_FORMAT(IFNULL(USE_START_DT, CREATE_DT), '%Y-%m-%d')
+        )
+        ON DUPLICATE KEY UPDATE SUM_MOVE_DISTANCE = VALUES(SUM_MOVE_DISTANCE),
+                                SUM_USE_TIME = VALUES(SUM_USE_TIME),
+                                SUM_USE_CASH = VALUES(SUM_USE_CASH),
+                                SUM_USE_POINT = VALUES(SUM_USE_POINT),
+                                CNT_BIKE_USE = VALUES(CNT_BIKE_USE),
+                                CNT_BIKE_RESERV = VALUES(CNT_BIKE_RESERV),
+                                CNT_BIKE_RESERV_CANCEL = VALUES(CNT_BIKE_RESERV_CANCEL)
+    ]]>
+    </update>
+    
+    <update id="summaryWeeklyBikeHistory" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_STATS_BIKE_WEEK_SUMMARY
+        (
+          START_DT,
+          SUM_MOVE_DISTANCE,
+          SUM_USE_TIME,
+          SUM_USE_CASH,
+          SUM_USE_POINT,
+          CNT_BIKE_USE,
+          CNT_BIKE_RESERV,
+          CNT_BIKE_RESERV_CANCEL
+        ) (SELECT DATE_FORMAT(#{startDate}, '%Y-%m-%d') AS WEEK_START_DT,
+                  SUM(SUM_MOVE_DISTANCE),
+                  SUM(SUM_USE_TIME),
+                  SUM(SUM_USE_CASH),
+                  SUM(SUM_USE_POINT),
+                  SUM(CNT_BIKE_USE),
+                  SUM(CNT_BIKE_RESERV),
+                  SUM(CNT_BIKE_RESERV_CANCEL)
+             FROM TBS_STATS_BIKE_DAY_SUMMARY
+            WHERE START_DT >= DATE_FORMAT(#{startDate}, '%Y-%m-%d')
+              AND START_DT < DATE_ADD(DATE_FORMAT(#{startDate}, '%Y-%m-%d'), INTERVAL 7 DAY)
+            GROUP BY WEEK_START_DT
+        )      
+        ON DUPLICATE KEY UPDATE SUM_MOVE_DISTANCE = VALUES(SUM_MOVE_DISTANCE),
+                                SUM_USE_TIME = VALUES(SUM_USE_TIME),
+                                SUM_USE_CASH = VALUES(SUM_USE_CASH),
+                                SUM_USE_POINT = VALUES(SUM_USE_POINT),
+                                CNT_BIKE_USE = VALUES(CNT_BIKE_USE),
+                                CNT_BIKE_RESERV = VALUES(CNT_BIKE_RESERV),
+                                CNT_BIKE_RESERV_CANCEL = VALUES(CNT_BIKE_RESERV_CANCEL)
+    ]]>
+    </update>
+    
+    <update id="summaryMonthlyBikeHistory" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_STATS_BIKE_MONTH_SUMMARY
+        (
+          START_DT,
+          SUM_MOVE_DISTANCE,
+          SUM_USE_TIME,
+          SUM_USE_CASH,
+          SUM_USE_POINT,
+          CNT_BIKE_USE,
+          CNT_BIKE_RESERV,
+          CNT_BIKE_RESERV_CANCEL
+        ) (SELECT DATE_FORMAT(#{startDate}, '%Y-%m-%d') AS MONTH_START_DT,
+                  SUM(SUM_MOVE_DISTANCE),
+                  SUM(SUM_USE_TIME),
+                  SUM(SUM_USE_CASH),
+                  SUM(SUM_USE_POINT),
+                  SUM(CNT_BIKE_USE),
+                  SUM(CNT_BIKE_RESERV),
+                  SUM(CNT_BIKE_RESERV_CANCEL)
+             FROM TBS_STATS_BIKE_DAY_SUMMARY
+            WHERE START_DT >= DATE_FORMAT(#{startDate}, '%Y-%m-%d')
+              AND START_DT < DATE_ADD(DATE_FORMAT(#{startDate}, '%Y-%m-%d'), INTERVAL 1 MONTH)
+            GROUP BY MONTH_START_DT
+        )
+        ON DUPLICATE KEY UPDATE SUM_MOVE_DISTANCE = VALUES(SUM_MOVE_DISTANCE),
+                                SUM_USE_TIME = VALUES(SUM_USE_TIME),
+                                SUM_USE_CASH = VALUES(SUM_USE_CASH),
+                                SUM_USE_POINT = VALUES(SUM_USE_POINT),
+                                CNT_BIKE_USE = VALUES(CNT_BIKE_USE),
+                                CNT_BIKE_RESERV = VALUES(CNT_BIKE_RESERV),
+                                CNT_BIKE_RESERV_CANCEL = VALUES(CNT_BIKE_RESERV_CANCEL)
+    ]]>
+    </update>
+    
+    <update id="summaryDailyPaymentHistory" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_STATS_PAYMENT_DAY_SUMMARY
+        (
+          START_DT,
+          SUM_PAY_AMOUNT,
+          CNT_PAYMENT,
+          CNT_PAYMENT_CANCEL
+        ) (SELECT DATE_FORMAT(A.ISSUE_DT, '%Y-%m-%d') AS START_DT,
+                  SUM(IF(A.CASH_POINT_HIST_CTG = '결제', B.PAYMENT_AMOUNT, 0)) - SUM(IF(A.CASH_POINT_HIST_CTG = '결제 취소' OR A.CASH_POINT_HIST_CTG = '환불', B.PAYMENT_AMOUNT, 0)), 
+                  SUM(IF(A.CASH_POINT_HIST_CTG = '결제', 1, 0)), 
+                  SUM(IF(A.CASH_POINT_HIST_CTG = '결제 취소' OR A.CASH_POINT_HIST_CTG = '환불', 1, 0))
+             FROM TBS_CASH_POINT_HISTORY A
+        LEFT JOIN TBS_PAYMENT B
+               ON A.PAYMENT_SEQ = B.PAYMENT_SEQ
+            WHERE A.ISSUE_DT >= DATE_FORMAT(#{startDate}, '%Y-%m-%d')
+              AND A.ISSUE_DT < DATE_ADD(DATE_FORMAT(#{endDate}, '%Y-%m-%d'), INTERVAL 1 DAY)
+              AND A.CASH_POINT_HIST_CTG IN ('결제', '결제 취소', '환불')
+            GROUP BY START_DT
+        )
+        ON DUPLICATE KEY UPDATE SUM_PAY_AMOUNT = VALUES(SUM_PAY_AMOUNT),
+                                CNT_PAYMENT = VALUES(CNT_PAYMENT),
+                                CNT_PAYMENT_CANCEL = VALUES(CNT_PAYMENT_CANCEL)
+    ]]>
+    </update>
+    
+    <update id="updateSummaryDailyPaymentHistory" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_STATS_PAYMENT_DAY_SUMMARY
+        (
+          START_DT,
+          SUM_PAY_AMOUNT
+        ) (SELECT DATE_FORMAT(UPDATE_DT, '%Y-%m-%d'),
+                  SUM(IF(REMAIN_CASH < 0, 0, REMAIN_CASH))
+             FROM TBS_CUSTOMER
+            WHERE UPDATE_DT >= DATE_FORMAT(#{startDate}, '%Y-%m-%d')
+              AND UPDATE_DT < DATE_ADD(DATE_FORMAT(#{endDate}, '%Y-%m-%d'), INTERVAL 1 DAY)
+              AND STATUS_KEY = 6
+            GROUP BY DATE_FORMAT(UPDATE_DT, '%Y-%m-%d')
+        )
+        ON DUPLICATE KEY UPDATE SUM_PAY_AMOUNT = SUM_PAY_AMOUNT - VALUES(SUM_PAY_AMOUNT)
+    ]]>
+    </update>
+    
+    <update id="summaryWeeklyPaymentHistory" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_STATS_PAYMENT_WEEK_SUMMARY
+        (
+          START_DT,
+          SUM_PAY_AMOUNT,
+          CNT_PAYMENT,
+          CNT_PAYMENT_CANCEL
+        ) (SELECT DATE_FORMAT(#{startDate}, '%Y-%m-%d') AS WEEK_START_DT,
+                  SUM(SUM_PAY_AMOUNT),
+                  SUM(CNT_PAYMENT),
+                  SUM(CNT_PAYMENT_CANCEL)
+             FROM TBS_STATS_PAYMENT_DAY_SUMMARY
+            WHERE START_DT >= DATE_FORMAT(#{startDate}, '%Y-%m-%d')
+              AND START_DT < DATE_ADD(DATE_FORMAT(#{startDate}, '%Y-%m-%d'), INTERVAL 7 DAY)
+            GROUP BY WEEK_START_DT
+        )
+        ON DUPLICATE KEY UPDATE SUM_PAY_AMOUNT = VALUES(SUM_PAY_AMOUNT),
+                                CNT_PAYMENT = VALUES(CNT_PAYMENT),
+                                CNT_PAYMENT_CANCEL = VALUES(CNT_PAYMENT_CANCEL)
+    ]]>
+    </update>
+    
+    <update id="summaryMonthlyPaymentHistory" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_STATS_PAYMENT_MONTH_SUMMARY
+        (
+          START_DT,
+          SUM_PAY_AMOUNT,
+          CNT_PAYMENT,
+          CNT_PAYMENT_CANCEL
+        ) (SELECT DATE_FORMAT(#{startDate}, '%Y-%m-%d') AS MONTH_START_DT,
+                  SUM(SUM_PAY_AMOUNT),
+                  SUM(CNT_PAYMENT),
+                  SUM(CNT_PAYMENT_CANCEL)
+             FROM TBS_STATS_PAYMENT_DAY_SUMMARY
+            WHERE START_DT >= DATE_FORMAT(#{startDate}, '%Y-%m-%d')
+              AND START_DT < DATE_ADD(DATE_FORMAT(#{startDate}, '%Y-%m-%d'), INTERVAL 1 MONTH)
+            GROUP BY MONTH_START_DT
+        )
+        ON DUPLICATE KEY UPDATE SUM_PAY_AMOUNT = VALUES(SUM_PAY_AMOUNT),
+                                CNT_PAYMENT = VALUES(CNT_PAYMENT),
+                                CNT_PAYMENT_CANCEL = VALUES(CNT_PAYMENT_CANCEL)
+    ]]>
+    </update>
+    
+    <update id="summaryDailyVocHistory" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_STATS_VOC_DAY_SUMMARY
+        (
+          START_DT,
+          VOC_CTG_KEY,
+          CNT_VOC_COMPLETED,
+          CNT_VOC_NOT_COMPLETED
+        ) 
+        (SELECT B.START_DT,
+                A.VOC_CTG_KEY,
+                SUM(IF(A.STATUS IN ('완료', '취소'), 1, 0)), 
+                SUM(IF(A.STATUS NOT IN ('완료', '취소'), 1, 0))
+           FROM TBS_MGMT_VOC A
+           JOIN (SELECT DATE_FORMAT(CREATE_DT, '%Y-%m-%d') AS START_DT
+                   FROM TBS_MGMT_VOC
+                  WHERE UPDATE_DT >= DATE_FORMAT(#{startDate}, '%Y-%m-%d')
+                    AND UPDATE_DT < DATE_ADD(DATE_FORMAT(#{endDate}, '%Y-%m-%d'), INTERVAL 1 DAY)
+                  GROUP BY START_DT
+                ) B
+             ON DATE_FORMAT(A.CREATE_DT, '%Y-%m-%d') = B.START_DT
+          GROUP BY B.START_DT, A.VOC_CTG_KEY
+        ) 
+        UNION ALL
+        (SELECT B.START_DT,
+                A.VOC_CTG_KEY,
+                SUM(IF(A.STATUS IN ('완료', '취소'), 1, 0)), 
+                SUM(IF(A.STATUS NOT IN ('완료', '취소'), 1, 0))
+           FROM TBS_MGMT_VOC_DEVICE A
+           JOIN (SELECT DATE_FORMAT(CREATE_DT, '%Y-%m-%d') AS START_DT
+                   FROM TBS_MGMT_VOC_DEVICE
+                  WHERE UPDATE_DT >= DATE_FORMAT(#{startDate}, '%Y-%m-%d')
+                    AND UPDATE_DT < DATE_ADD(DATE_FORMAT(#{endDate}, '%Y-%m-%d'), INTERVAL 1 DAY)
+                  GROUP BY START_DT
+                ) B
+             ON DATE_FORMAT(A.CREATE_DT, '%Y-%m-%d') = B.START_DT
+          GROUP BY B.START_DT, A.VOC_CTG_KEY
+        )
+        UNION ALL
+        (SELECT B.START_DT,
+                A.VOC_CTG_KEY,
+                SUM(IF(A.STATUS IN ('완료', '취소'), 1, 0)), 
+                SUM(IF(A.STATUS NOT IN ('완료', '취소'), 1, 0))
+           FROM TBS_MGMT_VOC_PAYMENT A
+           JOIN (SELECT DATE_FORMAT(CREATE_DT, '%Y-%m-%d') AS START_DT
+                   FROM TBS_MGMT_VOC_PAYMENT
+                  WHERE UPDATE_DT >= DATE_FORMAT(#{startDate}, '%Y-%m-%d')
+                    AND UPDATE_DT < DATE_ADD(DATE_FORMAT(#{endDate}, '%Y-%m-%d'), INTERVAL 1 DAY)
+                  GROUP BY START_DT
+                ) B
+             ON DATE_FORMAT(A.CREATE_DT, '%Y-%m-%d') = B.START_DT
+          GROUP BY B.START_DT, A.VOC_CTG_KEY
+        )
+        ON DUPLICATE KEY UPDATE CNT_VOC_COMPLETED = VALUES(CNT_VOC_COMPLETED),
+                                CNT_VOC_NOT_COMPLETED = VALUES(CNT_VOC_NOT_COMPLETED)
+    ]]>
+    </update>
+    
+    <update id="summaryWeeklyVocHistory" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_STATS_VOC_WEEK_SUMMARY
+        (
+          START_DT,
+          VOC_CTG_KEY,
+          CNT_VOC_COMPLETED,
+          CNT_VOC_NOT_COMPLETED
+        ) (SELECT DATE_FORMAT(#{startDate}, '%Y-%m-%d') AS WEEK_START_DT,
+                  VOC_CTG_KEY,
+                  SUM(CNT_VOC_COMPLETED),
+                  SUM(CNT_VOC_NOT_COMPLETED)
+             FROM TBS_STATS_VOC_DAY_SUMMARY
+            WHERE START_DT >= DATE_FORMAT(#{startDate}, '%Y-%m-%d')
+              AND START_DT < DATE_ADD(DATE_FORMAT(#{startDate}, '%Y-%m-%d'), INTERVAL 7 DAY)
+            GROUP BY WEEK_START_DT, VOC_CTG_KEY
+        )
+        ON DUPLICATE KEY UPDATE CNT_VOC_COMPLETED = VALUES(CNT_VOC_COMPLETED),
+                                CNT_VOC_NOT_COMPLETED = VALUES(CNT_VOC_NOT_COMPLETED)
+    ]]>
+    </update>
+    
+    <update id="summaryMonthlyVocHistory" parameterType="map">
+    <![CDATA[
+        INSERT INTO TBS_STATS_VOC_MONTH_SUMMARY
+        (
+          START_DT,
+          VOC_CTG_KEY,
+          CNT_VOC_COMPLETED,
+          CNT_VOC_NOT_COMPLETED
+        ) (SELECT DATE_FORMAT(#{startDate}, '%Y-%m-%d') AS MONTH_START_DT,
+                  VOC_CTG_KEY,
+                  SUM(CNT_VOC_COMPLETED),
+                  SUM(CNT_VOC_NOT_COMPLETED)
+             FROM TBS_STATS_VOC_DAY_SUMMARY
+            WHERE START_DT >= DATE_FORMAT(#{startDate}, '%Y-%m-%d')
+              AND START_DT < DATE_ADD(DATE_FORMAT(#{startDate}, '%Y-%m-%d'), INTERVAL 1 MONTH)
+            GROUP BY MONTH_START_DT, VOC_CTG_KEY
+        )
+        ON DUPLICATE KEY UPDATE CNT_VOC_COMPLETED = VALUES(CNT_VOC_COMPLETED),
+                                CNT_VOC_NOT_COMPLETED = VALUES(CNT_VOC_NOT_COMPLETED)
+    ]]>
+    </update>
+</mapper>
