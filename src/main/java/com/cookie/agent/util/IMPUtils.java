@@ -47,7 +47,7 @@ public class IMPUtils {
     public static String getPaymentHistoryList(String token, String status, int page, int limit, int from, int to) {
         String url = String.format("https://api.iamport.kr/payments/status/%s?page=%d&limit=%d&to=%d&sorting=started&_token=%s", status, page, limit, to, token);
         if (from > 1) {
-        	url += ("&from=" + from);
+            url = String.valueOf(url) + "&from=" + from;
         }
         
         Map<String, Object> headers = new HashMap<String, Object>();

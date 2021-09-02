@@ -40,9 +40,12 @@ public class CookieBatchManager {
     
     // Defines summary type
     public static enum SummaryType {
-        DAILY,
-        WEEKLY,
-        MONTHLY
+		DAILY("DAILY", 0),
+		WEEKLY("WEEKLY", 1),
+		MONTHLY("MONTHLY", 2);
+
+		private SummaryType(final String name, final int ordinal) {
+		}
     }
     
     private CommonDAO commonDao;
@@ -141,7 +144,7 @@ public class CookieBatchManager {
     	try {
     		commonDao.updateDormantCustomer(); //휴면 계정 처리 (마지막 로그인한 후 1년 지나면 휴면 계정으로 전환)
     		commonDao.deleteCustomer(); // 준회원, 탈퇴회원, 휴면 계정의 경우 6달 지난 후 삭제 처리
-    		
+			// 준회원, 탈퇴회원만 삭제
     		/*
             //1년 지난 데이터는 삭제?
             commonDao.deleteCashPointHistory();
@@ -469,7 +472,7 @@ public class CookieBatchManager {
     	parameters.put("agentNo", agentNo);
     	parameters.put("startDate", dateTimeFormat.format(executeDateTime));
     	parameters.put("jobType", jobName);
-    	parameters.put("jobInfo", "" + endBikeUseHistoryNo + "," + endCashPointHistoryNo + "," + endVocProcessHistoryNo);
+		parameters.put("jobInfo", endBikeUseHistoryNo + "," + endCashPointHistoryNo + "," + endVocProcessHistoryNo);
     	parameters.put("errorMessage", errorMessage);
     	
     	commonDao.insertAgentHistory(parameters);

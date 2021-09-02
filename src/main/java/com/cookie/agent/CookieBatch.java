@@ -15,13 +15,16 @@ public class CookieBatch {
 	
 	// Defines batch job
 	public static enum BatchJob {
-		EXPIRE_POINT,
-		UPDATE_DEVICE_CURR_STATE,
-		ACCUMULATE_DATA,
-        SUMMARY_DATA,
-        DELETE_DATA,
-        IAMPORT_GET_DATA,
-        IAMPORT_SYNC
+		EXPIRE_POINT("EXPIRE_POINT", 0),
+		UPDATE_DEVICE_CURR_STATE("UPDATE_DEVICE_CURR_STATE", 1),
+		ACCUMULATE_DATA("ACCUMULATE_DATA", 2),
+		SUMMARY_DATA("SUMMARY_DATA", 3),
+		DELETE_DATA("DELETE_DATA", 4),
+		IAMPORT_GET_DATA("IAMPORT_GET_DATA", 5),
+		IAMPORT_SYNC("IAMPORT_SYNC", 6);
+
+		private BatchJob(final String name, final int ordinal) {
+		}
     }
 	
 	private static CookieBatchManager manager;

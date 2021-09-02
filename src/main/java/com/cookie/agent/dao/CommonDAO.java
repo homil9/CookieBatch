@@ -26,10 +26,12 @@ public class CommonDAO {
 
         try {
             session.update("Common.updateExpiredPoint");
+
             session.commit();
         } finally {
             session.close();
         }
+        session.close();
     }
 
     /**
@@ -46,7 +48,7 @@ public class CommonDAO {
         } finally {
             session.close();
         }
-
+        session.close();
         return list;
     }
 
@@ -64,6 +66,7 @@ public class CommonDAO {
         } finally {
             session.close();
         }
+        session.close();
     }
 
     /**
@@ -79,6 +82,7 @@ public class CommonDAO {
         } finally {
             session.close();
         }
+        session.close();
     }
 
     /**
@@ -95,6 +99,7 @@ public class CommonDAO {
         } finally {
             session.close();
         }
+        session.close();
     }
 
     /**
@@ -109,6 +114,7 @@ public class CommonDAO {
         } finally {
             session.close();
         }
+        session.close();
     }
 
     /**
@@ -123,6 +129,7 @@ public class CommonDAO {
         } finally {
             session.close();
         }
+        session.close();
     }
 
     /**
@@ -140,6 +147,7 @@ public class CommonDAO {
         } finally {
             session.close();
         }
+        session.close();
     }
 
     public List<AgentHistory> selectAgentHistory(Map<String, Object> map) {
@@ -151,7 +159,7 @@ public class CommonDAO {
         } finally {
             session.close();
         }
-
+        session.close();
         return list;
     }
 
@@ -169,6 +177,7 @@ public class CommonDAO {
         } finally {
             session.close();
         }
+        session.close();
     }
 
     /**
@@ -185,7 +194,7 @@ public class CommonDAO {
         } finally {
             session.close();
         }
-
+        session.close();
         return result;
     }
 
@@ -203,7 +212,7 @@ public class CommonDAO {
         } finally {
             session.close();
         }
-
+        session.close();
         return result;
     }
 
@@ -221,7 +230,7 @@ public class CommonDAO {
         } finally {
             session.close();
         }
-
+        session.close();
         return result;
     }
 
@@ -239,6 +248,7 @@ public class CommonDAO {
         } finally {
             session.close();
         }
+        session.close();
     }
 
     /**
@@ -256,7 +266,7 @@ public class CommonDAO {
         } finally {
             session.close();
         }
-
+        session.close();
         return result;
     }
 
@@ -276,6 +286,7 @@ public class CommonDAO {
         } finally {
             session.close();
         }
+        session.close();
     }
 
     /**
@@ -293,7 +304,7 @@ public class CommonDAO {
         } finally {
             session.close();
         }
-
+        session.close();
         return result;
 
     }

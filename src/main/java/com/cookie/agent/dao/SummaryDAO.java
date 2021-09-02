@@ -30,7 +30,7 @@ public class SummaryDAO {
         } finally {
             session.close();
         }
-
+        session.close();
         return (result == null) ? 0 : (Integer)result;
     }
     
@@ -48,7 +48,7 @@ public class SummaryDAO {
         } finally {
             session.close();
         }
-
+        session.close();
         return (result == null) ? 0 : (Integer)result;
     }
     
@@ -66,7 +66,7 @@ public class SummaryDAO {
         } finally {
             session.close();
         }
-
+        session.close();
         return (result == null) ? 0 : (Integer)result;
     }
     
@@ -85,7 +85,7 @@ public class SummaryDAO {
         } finally {
             session.close();
         }
-
+        session.close();
         return (result == null) ? null : (String)result;
     }
     
@@ -104,7 +104,7 @@ public class SummaryDAO {
         } finally {
             session.close();
         }
-
+        session.close();
         return (result == null) ? null : (String)result;
     }
     
@@ -123,7 +123,7 @@ public class SummaryDAO {
         } finally {
             session.close();
         }
-
+        session.close();
         return (result == null) ? null : (String)result;
     }
     
@@ -142,7 +142,7 @@ public class SummaryDAO {
         } finally {
             session.close();
         }
-
+        session.close();
         return (result == null) ? null : (String)result;
     }
     
@@ -161,7 +161,7 @@ public class SummaryDAO {
         } finally {
             session.close();
         }
-
+        session.close();
         return (result == null) ? null : (String)result;
     }
     
@@ -183,6 +183,7 @@ public class SummaryDAO {
         } finally {
             session.close();
         }
+        session.close();
     }
     
     /**
@@ -208,6 +209,7 @@ public class SummaryDAO {
         } finally {
             session.close();
         }
+        session.close();
     }
     
     /**
@@ -224,6 +226,7 @@ public class SummaryDAO {
         } finally {
             session.close();
         }
+        session.close();
     }
     
     /**
@@ -241,7 +244,7 @@ public class SummaryDAO {
         } finally {
             session.close();
         }
-
+        session.close();
         return result;
     }
     
@@ -277,6 +280,7 @@ public class SummaryDAO {
         } finally {
             session.close();
         }
+        session.close();
     }
     
     /**
@@ -308,6 +312,7 @@ public class SummaryDAO {
         } finally {
             session.close();
         }
+        session.close();
     }
     
     /**
@@ -342,6 +347,7 @@ public class SummaryDAO {
         } finally {
             session.close();
         }
+        session.close();
     }
     
     /**
@@ -372,5 +378,6 @@ public class SummaryDAO {
         } finally {
             session.close();
         }
+        session.close();
     }
 }

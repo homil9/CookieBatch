@@ -14,19 +14,15 @@
     
     <update id="updateExpiredPoint" parameterType="map">
     <![CDATA[
-        INSERT INTO TBS_CASH_POINT_HISTORY
-        (
-          HISTORY_SEQ,
-          DECREASE_POINT
-        ) (SELECT HISTORY_SEQ, 
-                  POINT
-             FROM TBS_CASH_POINT_HISTORY
+        UPDATE TBS_CASH_POINT_HISTORY TCPH,
+            (SELECT HISTORY_SEQ, `POINT`
+            FROM TBS_CASH_POINT_HISTORY
             WHERE POINT_EXPIRING_DT < DATE_ADD(DATE_FORMAT(CURRENT_TIMESTAMP(), '%Y-%m-%d'), INTERVAL 1 DAY)
-              AND POINT_EXPIRING_DT IS NOT NULL
-              AND CASH_POINT_HIST_CTG_KEY = 3
-              AND (POINT - IFNULL(DECREASE_POINT, 0)) > 0
-        )
-        ON DUPLICATE KEY UPDATE DECREASE_POINT = VALUES(DECREASE_POINT)
+            AND POINT_EXPIRING_DT IS NOT NULL
+            AND CASH_POINT_HIST_CTG_KEY = 3
+            AND (`POINT` - IFNULL(DECREASE_POINT, 0)) > 0) EX
+        SET TCPH.DECREASE_POINT =  EX.`POINT`
+        WHERE TCPH.HISTORY_SEQ = EX.HISTORY_SEQ
     ]]>
     </update>
     
@@ -89,7 +85,7 @@
         DELETE
           FROM TBS_CUSTOMER
          WHERE UPDATE_DT < DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL -180 DAY)
-           AND STATUS_KEY IN (2, 3, 6)
+           AND STATUS_KEY IN (2, 6)
     ]]>
     </delete>
     
@@ -100,7 +96,7 @@
           JOIN TBS_CUSTOMER B
             ON A.CUSTOMER_SEQ = B.CUSTOMER_SEQ
          WHERE B.UPDATE_DT < DATE_ADD(CURRENT_TIMESTAMP(), INTERVAL -180 DAY)
-           AND B.STATUS_KEY IN (2, 3, 6)
+           AND B.STATUS_KEY IN (2, 6)
     ]]>
     </delete>
     
@@ -226,8 +222,7 @@
           FROM TBS_PAYMENT_IMP A
           JOIN TBS_CUSTOMER B
             ON A.BUYER_NAME = B.ID
-     LEFT JOIN TBS_PAYMENT
-
+     LEFT JOIN TBS_PAYMENT C
             ON A.MERCHANT_UID = C.PAYMENT_ORDER_CODE
      LEFT JOIN TBS_CASH_POINT_HISTORY D
             ON C.CUSTOMER_SEQ = D.CUSTOMER_SEQ AND C.PAYMENT_SEQ = D.PAYMENT_SEQ AND D.CASH_POINT_HIST_CTG_KEY = 3
